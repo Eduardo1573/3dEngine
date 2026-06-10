@@ -115,8 +115,11 @@ Objects = []
 # Objects += Parallelepiped(2.7, 0.2, 2.7, 0.6, 3.6, 0.6)
 # Objects += Parallelepiped(2.6, 3.8, 2.6, 0.8, 0.2, 0.8)
 # Objects += Cube(-1, 0, -1, 2)
-Objects += ObjConv(os.path.join(BASE_DIR, 'sphere.obj'), ToSunVector)
-
+# Objects += ObjConv(os.path.join(BASE_DIR, 'sphere.obj'), ToSunVector)
+Objects += Parallelepiped(-3, 0, -3, 3, 0.1, 3)
+Objects += Parallelepiped(-3, 0, 0, 3, 0.1, 3)
+Objects += Parallelepiped(0, 0, -3, 3, 0.1, 3)
+Objects += Parallelepiped(0, 0, 0, 3, 0.1, 3)
 # Objects += [GPT_Obj_1]
 
 #  (170, 57, 57), (212, 106, 106), (123, 159, 53), (165, 198, 99), (34, 102, 102), (64, 127, 127)
