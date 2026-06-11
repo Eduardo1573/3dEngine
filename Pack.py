@@ -18,7 +18,7 @@ def Parallelepiped(x, y, z, length, height, width):
     [1, 2, 5], [2, 5, 6], [2, 3, 7], [2, 6, 7],
     [0, 3, 7], [0, 4, 7], [4, 5, 7], [5, 6, 7]],
 
-    [200, 0, 200] ]]
+    [[200, 0, 200]]*12 ]]
 
 def Plane(n):
     points = [ [-n, 0, i] for i in range(-n, n+1) ] + [ [n, 0, i] for i in range(-n, n+1) ]
