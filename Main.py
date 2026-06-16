@@ -1,5 +1,6 @@
 import argparse
 import os
+from dotenv import load_dotenv
 
 import pygame
 from math import sin, cos, sqrt, pi, tan, acos
@@ -71,6 +72,7 @@ def make_player_object(player):
     colors = [color for _ in PLAYER_POLYGONS]
     return [points, PLAYER_POLYGONS, colors]
 
+load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 args = parse_args()
@@ -84,7 +86,7 @@ multiplayer = MultiplayerClient(
 multiplayer.connect()
 
 fps = 60
-lx, ly = 2560, 1600
+lx, ly = os.getenv("SCREEN_WIDTH"), os.getenv("SCREEN_HEIGHT")
 speed = 0.1
 
 ToSunVector = [-1, 1, -1]
