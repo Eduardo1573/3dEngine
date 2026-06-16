@@ -86,7 +86,7 @@ multiplayer = MultiplayerClient(
 multiplayer.connect()
 
 fps = 60
-lx, ly = os.getenv("SCREEN_WIDTH"), os.getenv("SCREEN_HEIGHT")
+lx, ly = int(os.getenv("SCREEN_WIDTH")), int(os.getenv("SCREEN_HEIGHT"))
 speed = 0.1
 
 ToSunVector = [-1, 1, -1]
