@@ -1,6 +1,7 @@
 import argparse
 import os
 from dotenv import load_dotenv
+import requests
 
 import pygame
 from math import sin, cos, sqrt, pi, tan, acos
@@ -74,10 +75,13 @@ def make_player_object(player):
 
 load_dotenv()
 
+local_ip = requests.get(url="https://api.npoint.io/0e339466ee57dc00420e").json()['local_ip']
+print(f'Fetched Local IP: {local_ip}')
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 args = parse_args()
 multiplayer = MultiplayerClient(
-    args.host,
+    args.host or local_ip,
     args.port,
     args.name,
     args.color,

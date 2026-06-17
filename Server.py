@@ -3,7 +3,22 @@ import json
 import socket
 import threading
 import time
+import subprocess
+import requests
 
+result = subprocess.run(
+    ["ipconfig", "getifaddr", "en0"],
+    capture_output=True,
+    text=True,
+    check=True
+)
+local_ip = result.stdout.replace('\n', '')
+body = {"local_ip": local_ip}
+print(f'Published Local IP: {local_ip}')
+requests.post(
+    url="https://api.npoint.io/0e339466ee57dc00420e",
+    json=body
+)
 
 TICK_RATE = 30
 SOCKET_TIMEOUT = 0.1
