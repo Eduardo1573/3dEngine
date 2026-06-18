@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument("--name", default="Player")
     parser.add_argument("--color", default="100,255,150")
     args = parser.parse_args()
-    args.host = args.host_option or args.host or "127.0.0.1"
+    args.host = args.host_option or args.host or None
     args.color = parse_color(args.color)
     return args
 
@@ -80,14 +80,14 @@ print(f'Fetched Local IP: {local_ip}')
 host_args = local_ip.split(':')
 port = None
 if len(host_args) == 3:
-	local_ip = host_args[1]
+	local_ip = host_args[1].replace('//', '')
 	port = int(host_args[2])
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 args = parse_args()
 multiplayer = MultiplayerClient(
-    args.host or local_ip,
-    args.port,
+    args.host or local_ip or '127.0.0.1',
+    port or args.port,
     args.name,
     args.color,
     enabled=not args.offline,
