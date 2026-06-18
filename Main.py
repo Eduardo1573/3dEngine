@@ -134,7 +134,7 @@ Objects = []
 #Objects += Parallelepiped(0, 0, -3, 3, 0.1, 3, 255, 255, 0)
 #Objects += Parallelepiped(0, 0, 0, 3, 0.1, 3, 0, 0, 255)
 # Objects += [GPT_Obj_1]
-Objects += TerrainSurface(10, 5, 30, seed = 123)
+Objects += TerrainSurface(13, 15, 10, seed = 123)
 #  (170, 57, 57), (212, 106, 106), (123, 159, 53), (165, 198, 99), (34, 102, 102), (64, 127, 127)
 
 
