@@ -132,7 +132,7 @@ def broadcaster():
         time.sleep(delay)
 
 
-def serve(host, port):
+def serve(host, port, ngrok):
 
     result = subprocess.run(
     ["ipconfig", "getifaddr", "en0"],
@@ -140,7 +140,7 @@ def serve(host, port):
     text=True,
     check=True
     )
-    local_ip = host or result.stdout.replace('\n', '')
+    local_ip = ngrok or result.stdout.replace('\n', '')
     body = {"local_ip": local_ip}
     print(f'Published Local IP: {local_ip}')
     requests.post(
@@ -194,6 +194,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="3dEngine multiplayer server")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=5555)
+    parser.add_argument("--ngrok", default=None)
     return parser.parse_args()
 
 
