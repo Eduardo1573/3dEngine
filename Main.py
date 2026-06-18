@@ -337,7 +337,7 @@ while running:
         all_y = [-ly <= y[1] <= 2*ly for y in three_points_pairs]
         if all_x == all_y == [True,True,True] and not polygon[1][0][2] and not polygon[1][1][2] and not polygon[1][2][2]:
             pygame.draw.polygon(display, polygon[2], (three_points_pairs))
-            pygame.draw.polygon(display, (0, 0, 0), (three_points_pairs), 1)
+            #pygame.draw.polygon(display, (0, 0, 0), (three_points_pairs), 1)
 
         # if not polygon[1][0][2] and not polygon[1][1][2] and not polygon[1][2][2]:
         #     pygame.draw.polygon(display, polygon[2], (three_points_pairs))
