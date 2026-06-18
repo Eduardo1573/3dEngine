@@ -1,5 +1,117 @@
 import math
 
+import random
+from scipy.spatial import Delaunay
+from noise import pnoise2
+
+
+def TerrainSurface(
+    triangulation_intensity,
+    vertical_amplification,
+    total_width,
+    base_red=38,
+    base_green=128,
+    base_blue=38,
+    color_deviation=25,
+    perlin_scale=0.08,
+    seed=None,
+):
+    """
+    Returns:
+    [[
+        list of [x, y, z] points,
+        list of [a, b, c] triangles,
+        list of [r, g, b] colors for each triangle
+    ]]
+
+    Args:
+        triangulation_intensity:
+            Controls how many points are generated.
+            Example: 20 means about 20x20 points.
+
+        vertical_amplification:
+            Multiplier for Perlin noise height.
+
+        total_width:
+            Side length of the square terrain.
+
+        base_red, base_green, base_blue:
+            Base polygon color.
+
+        color_deviation:
+            Random deviation added to each color channel.
+
+        perlin_scale:
+            Controls terrain smoothness.
+            Smaller value = smoother, larger value = more noisy.
+
+        seed:
+            Optional random seed.
+    """
+
+    if seed is not None:
+        random.seed(seed)
+
+    points_2d = []
+    points_3d = []
+
+    step = total_width / triangulation_intensity
+
+    for i in range(triangulation_intensity + 1):
+        for j in range(triangulation_intensity + 1):
+            # Base grid position
+            x = i * step
+            z = j * step
+
+            # Small random offset, but keep borders stable
+            if 0 < i < triangulation_intensity:
+                x += random.uniform(-step * 0.35, step * 0.35)
+
+            if 0 < j < triangulation_intensity:
+                z += random.uniform(-step * 0.35, step * 0.35)
+
+            # Perlin noise height
+            y = pnoise2(
+                x * perlin_scale,
+                z * perlin_scale,
+                octaves=4,
+                persistence=0.5,
+                lacunarity=2.0,
+                repeatx=1024,
+                repeaty=1024,
+                base=seed or 0,
+            ) * vertical_amplification
+
+            points_2d.append([x, z])
+            points_3d.append([x, y, z])
+
+    triangulation = Delaunay(points_2d)
+
+    triangles = []
+
+    for triangle in triangulation.simplices:
+        triangles.append([
+            int(triangle[0]),
+            int(triangle[1]),
+            int(triangle[2])
+        ])
+
+    colors = []
+
+    for _ in triangles:
+        r = base_red + random.randint(-color_deviation, color_deviation)
+        g = base_green + random.randint(-color_deviation, color_deviation)
+        b = base_blue + random.randint(-color_deviation, color_deviation)
+
+        # Clamp to valid RGB range
+        r = max(0, min(255, r))
+        g = max(0, min(255, g))
+        b = max(0, min(255, b))
+
+        colors.append([r, g, b])
+
+    return [[points_3d, triangles, colors]]
+
 def Cube(x, y, z, n):
     return [[ [[x, y, z+n], [x+n, y, z+n], [x+n, y, z], [x, y, z],
     [x, y+n, z+n], [x+n, y+n, z+n], [x+n, y+n, z], [x, y+n, z]],
