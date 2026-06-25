@@ -96,6 +96,8 @@ multiplayer.connect()
 
 fps = 60
 lx, ly = int(os.getenv("SCREEN_WIDTH")), int(os.getenv("SCREEN_HEIGHT"))
+fullscreen = bool(os.getenv("FULLSCREEN"))
+fullscreen = pygame.FULLSCREEN if fullscreen else pygame.RESIZABLE
 speed = 0.1
 
 ToSunVector = [-1, 1, -1]
@@ -108,7 +110,7 @@ l = 1
 real_screen_width = l * tan(fov / 2) * 2
 real_screen_height = real_screen_width * ly/lx
 
-display = pygame.display.set_mode((lx, ly), pygame.FULLSCREEN)
+display = pygame.display.set_mode((lx, ly), fullscreen)
 running = True
 font = pygame.font.SysFont('kongtext.ttf',  50)
 
@@ -134,9 +136,9 @@ Objects = []
 #Objects += Parallelepiped(0, 0, -3, 3, 0.1, 3, 255, 255, 0)
 #Objects += Parallelepiped(0, 0, 0, 3, 0.1, 3, 0, 0, 255)
 # Objects += [GPT_Obj_1]
-Objects += TerrainSurface(13, 15, 10, seed = 123)
+Objects += TerrainSurface(40, 25, 30, seed = 123)
 #  (170, 57, 57), (212, 106, 106), (123, 159, 53), (165, 198, 99), (34, 102, 102), (64, 127, 127)
-
+#Objects += square
 
 
 yaw = 0.0001
@@ -204,7 +206,7 @@ while not Tutor_Done:
 
 
 while running:
-    pygame.time.delay(max(1, int(1000 / fps - (end-start)*1000)))
+    pygame.time.Clock().tick(fps)
 
     start = perf_counter()
 
@@ -287,7 +289,7 @@ while running:
         D_Points = []
 
         for point in Points:
-            x0, y0, z0 = point  # a0 - rendering point, A - player pos, _a - vec to point, ap - interception
+            x0, y0, z0 = point  # a0 - point in space, A - player pos, _a - vec to point, ap - interception
 
             _x = x0 - X
             _y = y0 - Y
@@ -295,7 +297,7 @@ while running:
 
             dist_to = sqrt(_x ** 2 + _y ** 2 + _z ** 2)
 
-            cos_phi = (x_ * _x + y_ * _y + z_ * _z) / l / dist_to
+            cos_phi = x_ * _x + y_ * _y + z_ * _z
             at_the_back = True if cos_phi < 0 else False
 
             t = (A * X + B * Y + C * Z + D) / (A * _x + B * _y + C * _z)  # parameter
@@ -317,25 +319,23 @@ while running:
             x_real_pos = xp - left_edge - x_delta
             x00 = lx * x_real_pos / x_width
 
-            D_Points += [(x00, y00, at_the_back, dist_to)]
+            D_Points.append((x00, y00, at_the_back, dist_to))
 
 
         for i, polygon in enumerate(Polygons):
-            polygon_with_dist = (D_Points[polygon[0]][3]+D_Points[polygon[1]][3]+D_Points[polygon[2]][3])/3, [D_Points[polygon[0]], D_Points[polygon[1]], D_Points[polygon[2]]], Colors[i]
-            # print(polygon_with_dist)
-            Polygons_with_dist += [polygon_with_dist]
+            polygon_with_dist = (D_Points[polygon[0]][3]+D_Points[polygon[1]][3]+D_Points[polygon[2]][3]), [D_Points[polygon[0]], D_Points[polygon[1]], D_Points[polygon[2]]], Colors[i]
+            Polygons_with_dist.append(polygon_with_dist)
 
     Polygons_with_dist.sort(reverse=True)
 
-    for polygon in Polygons_with_dist:
-        # for i in polygon: print(i)
+    for polygon in Polygons_with_dist: # polygon: [, , (R, G, B)]
         three_points_pairs = [[polygon[1][0][0], polygon[1][0][1]],
                              [polygon[1][1][0], polygon[1][1][1]],
                              [polygon[1][2][0], polygon[1][2][1]]]
 
         all_x = [-lx <= x[0] <= 2*lx for x in three_points_pairs]
         all_y = [-ly <= y[1] <= 2*ly for y in three_points_pairs]
-        if all_x == all_y == [True,True,True] and not polygon[1][0][2] and not polygon[1][1][2] and not polygon[1][2][2]:
+        if not polygon[1][0][2] and not polygon[1][1][2] and not polygon[1][2][2]:
             pygame.draw.polygon(display, polygon[2], (three_points_pairs))
             #pygame.draw.polygon(display, (0, 0, 0), (three_points_pairs), 1)
 

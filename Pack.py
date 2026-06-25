@@ -4,6 +4,11 @@ import random
 from scipy.spatial import Delaunay
 from noise import pnoise2
 
+square = [[
+	[[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]],
+	[[0, 1, 2], [0, 2, 3]],
+	[[200, 50, 50], [50, 200, 50]]
+]]
 
 def TerrainSurface(
     triangulation_intensity,

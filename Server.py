@@ -1,16 +1,138 @@
 import argparse
 import json
+import math
 import socket
 import threading
 import time
-import subprocess
-import requests
+from dataclasses import dataclass
 
 TICK_RATE = 30
 SOCKET_TIMEOUT = 0.1
+PLAYER_VISUAL_WIDTH = 0.5
+PLAYER_VISUAL_HEIGHT = 1.25
+PLAYER_VISUAL_DEPTH = 0.5
 players = {}
 players_lock = threading.Lock()
 next_player_id = 1
+
+
+@dataclass(frozen=True)
+class Vec3:
+    x: float
+    y: float
+    z: float
+
+    def __add__(self, other):
+        return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def __sub__(self, other):
+        return Vec3(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    def __mul__(self, scale):
+        return Vec3(self.x * scale, self.y * scale, self.z * scale)
+
+
+@dataclass(frozen=True)
+class OrientedBox:
+    position: Vec3
+    dimensions: Vec3
+    yaw: float = 0.0
+    pitch: float = 0.0
+
+
+def world_to_box_local(point, box):
+    translated = point - box.position
+    sin_yaw = math.sin(box.yaw)
+    cos_yaw = math.cos(box.yaw)
+    sin_pitch = math.sin(box.pitch)
+    cos_pitch = math.cos(box.pitch)
+
+    yaw_local = Vec3(
+        translated.x * cos_yaw - translated.z * sin_yaw,
+        translated.y,
+        translated.x * sin_yaw + translated.z * cos_yaw,
+    )
+
+    return Vec3(
+        yaw_local.x,
+        yaw_local.y * cos_pitch - yaw_local.z * sin_pitch,
+        yaw_local.y * sin_pitch + yaw_local.z * cos_pitch,
+    )
+
+
+def segment_aabb_hit_fraction(start, end, dimensions):
+    half = dimensions * 0.5
+    direction = end - start
+    t_min = 0.0
+    t_max = 1.0
+
+    for origin, delta, low, high in (
+        (start.x, direction.x, -half.x, half.x),
+        (start.y, direction.y, -half.y, half.y),
+        (start.z, direction.z, -half.z, half.z),
+    ):
+        if abs(delta) < 1e-8:
+            if origin < low or origin > high:
+                return None
+            continue
+
+        inv_delta = 1.0 / delta
+        t1 = (low - origin) * inv_delta
+        t2 = (high - origin) * inv_delta
+        if t1 > t2:
+            t1, t2 = t2, t1
+
+        t_min = max(t_min, t1)
+        t_max = min(t_max, t2)
+        if t_min > t_max:
+            return None
+
+    return t_min
+
+
+def bullet_box_hit_fraction(bullet_start, bullet_end, box_position, box_dimensions, yaw=0.0, pitch=0.0):
+    box = OrientedBox(box_position, box_dimensions, yaw, pitch)
+    local_start = world_to_box_local(bullet_start, box)
+    local_end = world_to_box_local(bullet_end, box)
+    return segment_aabb_hit_fraction(local_start, local_end, box.dimensions)
+
+
+def bullet_hits_box(bullet_start, bullet_end, box_position, box_dimensions, yaw=0.0, pitch=0.0):
+    return bullet_box_hit_fraction(
+        bullet_start,
+        bullet_end,
+        box_position,
+        box_dimensions,
+        yaw,
+        pitch,
+    ) is not None
+
+
+def player_damage_box(player_state):
+    x = clean_float(player_state.get("x"), 0.0)
+    y = clean_float(player_state.get("y"), 1.0)
+    z = clean_float(player_state.get("z"), -10.0)
+    yaw = clean_float(player_state.get("yaw"), 0.0)
+    pitch = clean_float(player_state.get("pitch"), 0.0)
+
+    return OrientedBox(
+        position=Vec3(x, y - 0.375, z),
+        dimensions=Vec3(PLAYER_VISUAL_WIDTH, PLAYER_VISUAL_HEIGHT, PLAYER_VISUAL_DEPTH),
+        yaw=yaw,
+        pitch=pitch,
+    )
+
+
+def bullet_hits_player(bullet_start, bullet_end, player_state):
+    box = player_damage_box(player_state)
+    return bullet_box_hit_fraction(
+        bullet_start,
+        bullet_end,
+        box.position,
+        box.dimensions,
+        box.yaw,
+        box.pitch,
+    )
 
 
 def default_color(player_id):
@@ -132,29 +254,15 @@ def broadcaster():
         time.sleep(delay)
 
 
-def serve(host, port, ngrok):
-
-    result = subprocess.run(
-    ["ipconfig", "getifaddr", "en0"],
-    capture_output=True,
-    text=True,
-    check=True
-    )
-    local_ip = ngrok or result.stdout.replace('\n', '')
-    body = {"local_ip": local_ip}
-    print(f'Published Local IP: {local_ip}')
-    requests.post(
-        url="https://api.npoint.io/0e339466ee57dc00420e",
-        json=body
-    )
-
+def serve(host, port):
     global next_player_id
+    bind_host = host or "0.0.0.0"
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((host, port))
+    server_socket.bind((bind_host, port))
     server_socket.listen(32)
-    print(f"Multiplayer server listening on {host}:{port}")
+    print(f"Multiplayer server listening on {bind_host}:{port}")
 
     threading.Thread(target=broadcaster, daemon=True).start()
 
@@ -192,12 +300,11 @@ def serve(host, port, ngrok):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="3dEngine multiplayer server")
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=5555)
-    parser.add_argument("--ngrok", default=None)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    serve(args.host, args.port, args.ngrok)
+    serve(args.host, args.port)
