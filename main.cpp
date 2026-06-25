@@ -85,6 +85,21 @@ struct Vertex {
 
 using GLBufferSize = std::ptrdiff_t;
 
+#ifdef _WIN32
+#ifndef GL_ARRAY_BUFFER
+#define GL_ARRAY_BUFFER 0x8892
+#endif
+#ifndef GL_ELEMENT_ARRAY_BUFFER
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+#endif
+#ifndef GL_STATIC_DRAW
+#define GL_STATIC_DRAW 0x88E4
+#endif
+#ifndef GL_DYNAMIC_DRAW
+#define GL_DYNAMIC_DRAW 0x88E8
+#endif
+#endif
+
 void loadRequiredOpenGlFunctions();
 void gpuGenBuffers(GLsizei count, GLuint* buffers);
 void gpuBindBuffer(GLenum target, GLuint buffer);
@@ -172,16 +187,6 @@ struct Mesh {
 };
 
 #ifdef _WIN32
-#ifndef GL_ARRAY_BUFFER
-#define GL_ARRAY_BUFFER 0x8892
-#endif
-#ifndef GL_ELEMENT_ARRAY_BUFFER
-#define GL_ELEMENT_ARRAY_BUFFER 0x8893
-#endif
-#ifndef GL_STATIC_DRAW
-#define GL_STATIC_DRAW 0x88E4
-#endif
-
 using GlGenBuffersProc = void (APIENTRY*)(GLsizei, GLuint*);
 using GlBindBufferProc = void (APIENTRY*)(GLenum, GLuint);
 using GlBufferDataProc = void (APIENTRY*)(GLenum, GLBufferSize, const GLvoid*, GLenum);
@@ -390,10 +395,32 @@ constexpr float kWalkBobAmplitude = 0.035f;
 constexpr float kWalkBobFramesPerCycle = 60.0f;
 constexpr float kWalkBobSmoothing = 12.0f;
 constexpr float kNetworkSendRate = 30.0f;
-constexpr float kPlayerVisualWidth = 0.5f;
-constexpr float kPlayerVisualHeight = 1.25f;
-constexpr float kPlayerVisualDepth = 0.5f;
-constexpr float kPlayerVisualCenterYOffset = -0.375f;
+
+struct CharacterPart {
+    Vec3 localCenter;
+    Vec3 size;
+    float colorScale = 1.0f;
+    bool skin = false;
+    bool followsPitch = false;
+};
+
+const std::array<CharacterPart, 10>& characterParts()
+{
+    static const std::array<CharacterPart, 10> parts {{
+        // Root is the pelvis point: torso starts at y=0, legs end at y=0.
+        {{0.0f, 0.45f, 0.0f}, {0.58f, 0.90f, 0.32f}, 1.00f, false, false}, // torso
+        {{0.0f, 1.16f, 0.0f}, {0.38f, 0.38f, 0.38f}, 1.00f, true, true},   // head
+        {{-0.43f, 0.56f, 0.0f}, {0.16f, 0.52f, 0.18f}, 0.90f, false, false}, // left upper arm
+        {{-0.43f, 0.08f, 0.0f}, {0.15f, 0.44f, 0.16f}, 0.78f, false, false}, // left lower arm
+        {{0.43f, 0.56f, 0.0f}, {0.16f, 0.52f, 0.18f}, 0.90f, false, false},  // right upper arm
+        {{0.43f, 0.08f, 0.0f}, {0.15f, 0.44f, 0.16f}, 0.78f, false, false},  // right lower arm
+        {{-0.16f, -0.27f, 0.0f}, {0.18f, 0.54f, 0.22f}, 0.72f, false, false}, // left upper leg
+        {{-0.16f, -0.81f, 0.0f}, {0.17f, 0.54f, 0.20f}, 0.62f, false, false}, // left lower leg
+        {{0.16f, -0.27f, 0.0f}, {0.18f, 0.54f, 0.22f}, 0.72f, false, false},  // right upper leg
+        {{0.16f, -0.81f, 0.0f}, {0.17f, 0.54f, 0.20f}, 0.62f, false, false},  // right lower leg
+    }};
+    return parts;
+}
 
 float clamp(float value, float low, float high)
 {
@@ -1344,19 +1371,34 @@ void addBoxObstacle(Mesh& mesh, const Vec3& center, const Vec3& size, const Colo
     addBoxCollider(center, size);
 }
 
-void addRemotePlayerBox(Mesh& mesh, const RemotePlayer& player)
+Vec3 characterLocalToWorld(const Vec3& root, const Vec3& local, float yaw)
 {
-    const Vec3 center {
-        player.position.x,
-        player.position.y + kPlayerVisualCenterYOffset,
-        player.position.z,
+    const float sinYaw = std::sin(yaw);
+    const float cosYaw = std::cos(yaw);
+    return {
+        root.x + local.x * cosYaw + local.z * sinYaw,
+        root.y + local.y,
+        root.z - local.x * sinYaw + local.z * cosYaw,
     };
-    const Vec3 size {
-        kPlayerVisualWidth,
-        kPlayerVisualHeight,
-        kPlayerVisualDepth,
-    };
-    addOrientedBox(mesh, center, size, player.yaw, player.pitch, player.color);
+}
+
+void addCharacter(Mesh& mesh, const Vec3& root, float yaw, float pitch, const Color& baseColor)
+{
+    const Color skinColor = scaledColor(232, 184, 140, 1.0f);
+    for (const CharacterPart& part : characterParts()) {
+        addOrientedBox(
+            mesh,
+            characterLocalToWorld(root, part.localCenter, yaw),
+            part.size,
+            yaw,
+            part.followsPitch ? pitch : 0.0f,
+            part.skin ? skinColor : scaledColor(baseColor, part.colorScale));
+    }
+}
+
+void addRemotePlayerCharacter(Mesh& mesh, const RemotePlayer& player)
+{
+    addCharacter(mesh, player.position, player.yaw, player.pitch, player.color);
 }
 
 void rebuildRemotePlayersMesh()
@@ -1365,10 +1407,10 @@ void rebuildRemotePlayersMesh()
     gRemotePlayersMesh.indices.clear();
 
     const std::vector<RemotePlayer> players = gMultiplayer.otherPlayers();
-    gRemotePlayersMesh.vertices.reserve(players.size() * 36);
-    gRemotePlayersMesh.indices.reserve(players.size() * 36);
+    gRemotePlayersMesh.vertices.reserve(players.size() * characterParts().size() * 36);
+    gRemotePlayersMesh.indices.reserve(players.size() * characterParts().size() * 36);
     for (const RemotePlayer& player : players) {
-        addRemotePlayerBox(gRemotePlayersMesh, player);
+        addRemotePlayerCharacter(gRemotePlayersMesh, player);
     }
 
     if (!gRemotePlayersMesh.indices.empty()) {

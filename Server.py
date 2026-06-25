@@ -8,9 +8,6 @@ from dataclasses import dataclass
 
 TICK_RATE = 30
 SOCKET_TIMEOUT = 0.1
-PLAYER_VISUAL_WIDTH = 0.5
-PLAYER_VISUAL_HEIGHT = 1.25
-PLAYER_VISUAL_DEPTH = 0.5
 players = {}
 players_lock = threading.Lock()
 next_player_id = 1
@@ -33,11 +30,44 @@ class Vec3:
 
 
 @dataclass(frozen=True)
+class CharacterPart:
+    name: str
+    local_center: Vec3
+    dimensions: Vec3
+    follows_pitch: bool = False
+
+
+@dataclass(frozen=True)
 class OrientedBox:
     position: Vec3
     dimensions: Vec3
     yaw: float = 0.0
     pitch: float = 0.0
+
+
+CHARACTER_PARTS = (
+    # Root is the pelvis point: torso starts at y=0, legs end at y=0.
+    CharacterPart("torso", Vec3(0.0, 0.45, 0.0), Vec3(0.58, 0.90, 0.32)),
+    CharacterPart("head", Vec3(0.0, 1.16, 0.0), Vec3(0.38, 0.38, 0.38), True),
+    CharacterPart("left_upper_arm", Vec3(-0.43, 0.56, 0.0), Vec3(0.16, 0.52, 0.18)),
+    CharacterPart("left_lower_arm", Vec3(-0.43, 0.08, 0.0), Vec3(0.15, 0.44, 0.16)),
+    CharacterPart("right_upper_arm", Vec3(0.43, 0.56, 0.0), Vec3(0.16, 0.52, 0.18)),
+    CharacterPart("right_lower_arm", Vec3(0.43, 0.08, 0.0), Vec3(0.15, 0.44, 0.16)),
+    CharacterPart("left_upper_leg", Vec3(-0.16, -0.27, 0.0), Vec3(0.18, 0.54, 0.22)),
+    CharacterPart("left_lower_leg", Vec3(-0.16, -0.81, 0.0), Vec3(0.17, 0.54, 0.20)),
+    CharacterPart("right_upper_leg", Vec3(0.16, -0.27, 0.0), Vec3(0.18, 0.54, 0.22)),
+    CharacterPart("right_lower_leg", Vec3(0.16, -0.81, 0.0), Vec3(0.17, 0.54, 0.20)),
+)
+
+
+def player_local_to_world(root, local, yaw):
+    sin_yaw = math.sin(yaw)
+    cos_yaw = math.cos(yaw)
+    return Vec3(
+        root.x + local.x * cos_yaw + local.z * sin_yaw,
+        root.y + local.y,
+        root.z - local.x * sin_yaw + local.z * cos_yaw,
+    )
 
 
 def world_to_box_local(point, box):
@@ -109,30 +139,42 @@ def bullet_hits_box(bullet_start, bullet_end, box_position, box_dimensions, yaw=
 
 
 def player_damage_box(player_state):
+    return player_damage_boxes(player_state)[0]
+
+
+def player_damage_boxes(player_state):
     x = clean_float(player_state.get("x"), 0.0)
     y = clean_float(player_state.get("y"), 1.0)
     z = clean_float(player_state.get("z"), -10.0)
     yaw = clean_float(player_state.get("yaw"), 0.0)
     pitch = clean_float(player_state.get("pitch"), 0.0)
+    root = Vec3(x, y, z)
 
-    return OrientedBox(
-        position=Vec3(x, y - 0.375, z),
-        dimensions=Vec3(PLAYER_VISUAL_WIDTH, PLAYER_VISUAL_HEIGHT, PLAYER_VISUAL_DEPTH),
-        yaw=yaw,
-        pitch=pitch,
-    )
+    return [
+        OrientedBox(
+            position=player_local_to_world(root, part.local_center, yaw),
+            dimensions=part.dimensions,
+            yaw=yaw,
+            pitch=pitch if part.follows_pitch else 0.0,
+        )
+        for part in CHARACTER_PARTS
+    ]
 
 
 def bullet_hits_player(bullet_start, bullet_end, player_state):
-    box = player_damage_box(player_state)
-    return bullet_box_hit_fraction(
-        bullet_start,
-        bullet_end,
-        box.position,
-        box.dimensions,
-        box.yaw,
-        box.pitch,
-    )
+    first_hit = None
+    for box in player_damage_boxes(player_state):
+        hit = bullet_box_hit_fraction(
+            bullet_start,
+            bullet_end,
+            box.position,
+            box.dimensions,
+            box.yaw,
+            box.pitch,
+        )
+        if hit is not None and (first_hit is None or hit < first_hit):
+            first_hit = hit
+    return first_hit
 
 
 def default_color(player_id):

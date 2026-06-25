@@ -12,6 +12,33 @@ cmake --build build
 
 ## Windows
 
+### MSYS2 / MinGW
+
+Install MSYS2 UCRT64, then install the compiler and FreeGLUT:
+
+```bash
+pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-freeglut
+```
+
+Build:
+
+```bash
+mkdir -p build
+g++ -std=c++17 -O2 -Wall -Wextra main.cpp -o build/gpu_polygon_engine.exe -lfreeglut -lopengl32 -lglu32 -lws2_32
+```
+
+Run:
+
+```bash
+./build/gpu_polygon_engine.exe --host 10.40.206.76 --port 5555 --name Player2 --color 255,80,80
+```
+
+`freeglut.dll` must be available in `PATH` or placed next to the `.exe`.
+If the program exits immediately with a DLL error, that is a Windows runtime
+environment issue rather than a code issue.
+
+### Visual Studio / vcpkg
+
 Install:
 
 - Visual Studio with the C++ desktop workload
